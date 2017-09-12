@@ -1,0 +1,19 @@
+version: '3'
+services:
+  clamav:
+    image: dinkel/clamavd
+    networks:
+      - filestore
+  app:
+    build:
+      context: .
+    ports:
+      - 9090:9090
+    env_file:
+      - config.env
+    working_dir: /go/src/github.com/stewartwebb/filestore/src
+    networks:
+      - filestore
+
+networks:
+  filestore:
