@@ -1,0 +1,165 @@
+swagger: "2.0"
+info:
+  description: "This service handles file uploads and storage. The basic system is, upload file meta data, then upload the file directly to URL provided by the meta upload 200."
+  version: "1.0.0"
+  title: "File Storage Microservice"
+  contact:
+    email: "hello@stewartwebb.co.uk"
+basePath: "/v1"
+tags:
+- name: "file"
+  description: "Everything about your files"
+schemes:
+- "http"
+paths:
+  /files:
+    get:
+      tags:
+      - "file"
+      summary: "Get a list of files"
+      description: "Return a list of files which can be filtered by some meta information."
+      operationId: "getFiles"
+      consumes:
+      - "application/json"
+      - "application/x-msgpack"
+      produces:
+      - "application/json"
+      - "application/x-msgpack"
+      parameters:
+      - in: "query"
+        name: "meta.<key>"
+        type: "string"
+      responses:
+        200:
+          description: "List of files that are available"
+          schema:
+            type: "array"
+            items:
+                $ref: '#/definitions/File'
+        404:
+          description: "We could not find any files."
+    post:
+      tags:
+      - "file"
+      summary: "Add a new file to the store"
+      description: "If you want to upload a new file then call this route first with the details of your file, we will then return a 200 with a Location header of the destination to upload the actual file to. This will usually take the form PUT /files/{key}/upload"
+      operationId: "addFile"
+      consumes:
+      - "application/json"
+      - "application/x-msgpack"
+      produces:
+      - "application/json"
+      - "application/x-msgpack"
+      parameters:
+      - in: "body"
+        name: "body"
+        description: "File object that needs to be added to the store"
+        required: true
+        schema:
+          $ref: "#/definitions/File"
+      responses:
+        405:
+          description: "Invalid input"
+  /files/{key}:
+    get:
+      tags:
+      - "file"
+      summary: "Get the details of a single file"
+      description: "Go and get the meta data and file URL of the file with this key."
+      operationId: "getFile"
+      consumes:
+      - "application/json"
+      - "application/x-msgpack"
+      produces:
+      - "application/json"
+      - "application/x-msgpack"
+      parameters:
+      - in: "path"
+        name: "key"
+        required: true
+        type: "string"
+        description: "Key of the file"
+      responses:
+        200:
+          description: "Success. Return file details."
+          schema:
+            $ref: '#/definitions/File'
+        404:
+          description: "Key not found"
+    delete:
+      tags:
+      - "file"
+      summary: "Delete the file"
+      operationId: "deleteFile"
+      parameters:
+      - in: "path"
+        name: "key"
+        type: "string"
+        format: "key"
+        required: true
+      responses:
+        201:
+          description: "File deleted successfully"
+  /files/{key}/upload:
+    put:
+      tags:
+      - "file"
+      summary: "Direct upload a file to a pre-defined file."
+      operationId: "uploadFile"
+      parameters:
+      - in: "path"
+        name: "key"
+        type: "string"
+        format: "key"
+        required: true
+      - in: "body"
+        name: "body"
+        description: "File to be stored"
+        required: true
+        schema:
+          type: "string"
+          format: "binary"
+      responses:
+        201:
+          description: "File uploaded successfully"
+          schema:
+            $ref: '#/definitions/File'
+securityDefinitions:
+  petstore_auth:
+    type: "oauth2"
+    authorizationUrl: "http://petstore.swagger.io/oauth/dialog"
+    flow: "implicit"
+    scopes:
+      write:pets: "modify pets in your account"
+      read:pets: "read your pets"
+  api_key:
+    type: "apiKey"
+    name: "api_key"
+    in: "header"
+definitions:
+  File:
+    type: "object"
+    required:
+      - "key"
+      - "owner"
+    properties:
+      key:
+        type: "string"
+        format: "key"
+      title:
+        type: "string"
+      file_url:
+        type: "string"
+        format: "url"
+      owner:
+        type: "string"
+        format: "key"
+      meta:
+        type: "array"
+        items:
+          type: "object"
+          properties:
+            key:
+              type: "string"
+            value:
+              type: "string"
