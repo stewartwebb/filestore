@@ -29,7 +29,7 @@ func CreateFile(w http.ResponseWriter, r *http.Request) {
 
 	file.ID = 0
 
-	file, err = db.SaveFile(file)
+	file, err = db.SaveFile(file, false)
 	if err != nil {
 		log.Printf("[CreateFile] SQL Error: %v", err)
 		common.RespondError(w, r, http.StatusInternalServerError)

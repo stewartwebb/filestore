@@ -14,6 +14,7 @@ type config struct {
 	GitVersion       string
 	WebAddress       string
 	AwsBucket        string
+	KmsARN           string
 }
 
 // AppConfig is the application configuration
@@ -29,4 +30,5 @@ func loadConfig() {
 	AppConfig.GitVersion = os.Getenv("GIT_VERSION")
 	AppConfig.WebAddress = os.Getenv("WEB_ADDRESS")
 	AppConfig.AwsBucket = os.Getenv("AWS_BUCKET")
+	AppConfig.KmsARN = os.Getenv("KMS_ARN")
 }

@@ -7,7 +7,7 @@ import (
 )
 
 // SaveFile attempts to save files in the database through INSERT or UPDATE
-func (db *DB) SaveFile(f models.File) (models.File, error) {
+func (db *DB) SaveFile(f models.File, isUpload bool) (models.File, error) {
 	var query string
 
 	tx, err := db.Begin()
@@ -24,11 +24,17 @@ func (db *DB) SaveFile(f models.File) (models.File, error) {
 		f.Size,
 		strings.Join(f.Validate.MimeType, ","),
 	}
+
 	if f.ID == 0 {
 		query = "INSERT INTO tFiles SET " + queryParams
 	} else {
-		query = "UPDATE tFiles SET " + queryParams + " WHERE pFileID = ?"
+		query = "UPDATE tFiles SET " + queryParams
+		if isUpload {
+			query += ", dUploaded = NOW()"
+		}
+		query += " WHERE pFileID = ?"
 		params = append(params, f.ID)
+
 	}
 	result, err := tx.Exec(query, params...)
 	if err != nil {

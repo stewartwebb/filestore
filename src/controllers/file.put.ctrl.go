@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"bytes"
+	"database/sql"
 	"errors"
 	"fmt"
 	"io"
@@ -11,6 +12,8 @@ import (
 	"os/exec"
 	"strconv"
 	"syscall"
+
+	"github.com/stewartwebb/filestore/src/data"
 
 	"github.com/gorilla/mux"
 	"github.com/stewartwebb/filestore/src/common"
@@ -31,16 +34,32 @@ func UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	db := r.Context().Value("conn").(*data.DB)
+	f, err := db.GetFile(id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			common.RespondError(w, r, http.StatusNotFound)
+			return
+		}
+		common.RespondError(w, r, http.StatusInternalServerError)
+		return
+	}
+
+	if f.Size > 0 {
+		common.RespondError(w, r, http.StatusConflict, "Cannot upload file again")
+		return
+	}
+
 	defer r.Body.Close()
-	f, err := os.Create("/tmp/" + strconv.FormatInt(id, 10))
+	file, err := os.Create("/tmp/" + strconv.FormatInt(id, 10))
 	if err != nil {
 		log.Printf("[UploadFile] Error Opening File: %v", err)
 		common.RespondError(w, r, http.StatusInternalServerError)
 		return
 	}
-	defer f.Close()
+	defer file.Close()
 
-	if _, err = io.Copy(f, r.Body); err != nil {
+	if _, err = io.Copy(file, r.Body); err != nil {
 		log.Printf("[UploadFile] Error saving file: %v", err)
 		common.RespondError(w, r, http.StatusInternalServerError)
 		return
@@ -57,13 +76,24 @@ func UploadFile(w http.ResponseWriter, r *http.Request) {
 		common.RespondError(w, r, http.StatusBadRequest, "Failed virus scan")
 		return
 	}
-	ok, err = uploadFile(id)
+	size, fileType, err := uploadFile(id)
 	if err != nil {
 		log.Printf("[UploadFile] Upload Error: %v", err)
 		common.RespondError(w, r, http.StatusInternalServerError)
 		return
 	}
-	common.RespondOk(w, r, ok)
+
+	f.Size = size
+	f.MimeType = fileType
+
+	f, err = db.SaveFile(f, true)
+	if err != nil {
+		log.Printf("[UploadFile] SQL Error: %v", err)
+		common.RespondError(w, r, http.StatusInternalServerError)
+		return
+	}
+
+	common.RespondOk(w, r, f)
 
 }
 
@@ -90,7 +120,7 @@ func scanFile(id int64) (bool, error) {
 	}
 }
 
-func uploadFile(id int64) (bool, error) {
+func uploadFile(id int64) (int64, string, error) {
 	file, err := os.Open("/tmp/" + strconv.FormatInt(id, 10))
 	if err != nil {
 		fmt.Printf("err opening file: %s", err)
@@ -107,9 +137,7 @@ func uploadFile(id int64) (bool, error) {
 
 	sess := session.Must(session.NewSession())
 
-	arn := "arn:aws:s3:::pinnacleweb/" + strconv.FormatInt(id, 10)
-
-	keywrap := s3crypto.NewKMSKeyGenerator(kms.New(sess), arn)
+	keywrap := s3crypto.NewKMSKeyGenerator(kms.New(sess), common.AppConfig.KmsARN)
 	builder := s3crypto.AESGCMContentCipherBuilder(keywrap)
 	client := s3crypto.NewEncryptionClient(sess, builder)
 
@@ -121,7 +149,7 @@ func uploadFile(id int64) (bool, error) {
 	}
 	_, err = client.PutObject(params)
 	if err != nil {
-		return false, err
+		return 0, "", err
 	}
-	return true, nil
+	return size, fileType, nil
 }
